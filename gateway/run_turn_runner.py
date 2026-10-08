@@ -1932,8 +1932,6 @@ class TurnRunner:
                 "messages": [], "api_calls": 0, "tools": [],
             }
         pr = runner._provider_routing
-        reasoning_config = runner._resolve_session_reasoning_config(source=ctx.source, session_key=ctx.session_key, model=model)
-        runner._reasoning_config = reasoning_config
         runner._service_tier = runner._resolve_session_service_tier(source=ctx.source, session_key=ctx.session_key)
         stream_consumer, stream_delta_cb, interim_cb, want_interim = self._setup_stream_consumer(platform_key)
         # Preserve explicit /model and channel overrides: semantic routing is only an automatic
@@ -1960,6 +1958,13 @@ class TurnRunner:
             ctx.message, model, runtime_kwargs, allow_semantic_routing=allow_semantic_routing,
             routing_config=ctx.user_config,
         )
+        # Resolve reasoning after semantic routing so the selected model receives a compatible
+        # reasoning configuration. Explicit session/channel overrides remain authoritative because
+        # semantic routing is disabled for those turns.
+        reasoning_config = runner._resolve_session_reasoning_config(
+            source=ctx.source, session_key=ctx.session_key, model=turn_route["model"],
+        )
+        runner._reasoning_config = reasoning_config
         agent, reused_cached_agent = self._resolve_turn_agent(
             turn_route, platform_key, combined_ephemeral, max_iterations, reasoning_config, pr,
         )
