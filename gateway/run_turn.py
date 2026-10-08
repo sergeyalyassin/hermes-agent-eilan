@@ -305,13 +305,37 @@ class GatewayTurnMixin:
 
         return model, runtime_kwargs
 
-    def _resolve_turn_agent_config(self, user_message: str, model: str, runtime_kwargs: dict) -> dict:
-        """Effective model/runtime config for one turn. With `/fast` priority on, fast-mode
-        ``request_overrides`` are deep-merged OVER the per-provider ones so both reach the model."""
+    def _resolve_turn_agent_config(self, user_message: str, model: str, runtime_kwargs: dict, *,
+                                   allow_semantic_routing: bool = True) -> dict:
+        """Resolve one turn, optionally applying deterministic semantic model routing.
+
+        Explicit session/channel choices are allowed to disable this optimization. Provider
+        credentials and fallback handling remain in the normal Hermes runtime resolver.
+        """
         from gateway.run import _deep_merge_request_overrides
         from agent.fast_mode import STATIC_TIERS
         from hermes_cli.models import resolve_fast_mode_overrides
-        # Tests bind this method onto bare namespaces, so no class-level tables here.
+
+        if allow_semantic_routing:
+            try:
+                from agent.semantic_model_router import select
+                from gateway.run import _resolve_runtime_agent_kwargs_for_provider
+
+                semantic = select(user_message, getattr(self, "user_config", None))
+                if semantic:
+                    routed_runtime = _resolve_runtime_agent_kwargs_for_provider(
+                        "openrouter", target_model=semantic.model,
+                    )
+                    if routed_runtime:
+                        logger.info(
+                            "Semantic model route: task=%s model=%s provider=openrouter",
+                            semantic.name, semantic.model,
+                        )
+                        model = semantic.model
+                        runtime_kwargs = routed_runtime
+            except Exception as exc:
+                logger.debug("Semantic model routing skipped: %s", exc)
+
         runtime = {
             k: runtime_kwargs.get(k) for k in (
                 "api_key", "base_url", "provider", "requested_provider", "api_mode", "command", "args",
@@ -331,7 +355,6 @@ class GatewayTurnMixin:
         }
         tier = getattr(self, "_service_tier", None)
         if tier not in STATIC_TIERS:
-            # None / auto / cold: the bounded window is applied per request by agent.fast_mode.
             route["request_overrides"] = base_request_overrides
             return route
         try:
@@ -340,7 +363,6 @@ class GatewayTurnMixin:
             )
         except Exception:
             overrides = None
-        # Fast-mode keys (service_tier / speed) are top-level and don't collide with extra_body.
         route["request_overrides"] = _deep_merge_request_overrides(base_request_overrides, overrides or {})
         return route
 
