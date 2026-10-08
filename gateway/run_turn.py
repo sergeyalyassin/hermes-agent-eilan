@@ -305,10 +305,31 @@ class GatewayTurnMixin:
 
         return model, runtime_kwargs
 
-    def _resolve_turn_agent_config(self, user_message: str, model: str, runtime_kwargs: dict) -> dict:
+    def _resolve_turn_agent_config(self, user_message: str, model: str, runtime_kwargs: dict, *,
+                                   allow_semantic_routing: bool = True, routing_config: Optional[dict] = None) -> dict:
         """Effective model/runtime config for one turn. With `/fast` priority on, fast-mode
         ``request_overrides`` are deep-merged OVER the per-provider ones so both reach the model."""
         from gateway.run import _deep_merge_request_overrides
+        if allow_semantic_routing:
+            try:
+                from agent.semantic_model_router import select
+                from gateway.run import _resolve_runtime_agent_kwargs_for_provider
+
+                semantic = select(user_message, routing_config)
+                if semantic:
+                    routed_runtime = _resolve_runtime_agent_kwargs_for_provider(
+                        "openrouter", target_model=semantic.model,
+                    )
+                    if routed_runtime:
+                        logger.info(
+                            "Semantic model route: task=%s model=%s provider=openrouter",
+                            semantic.name, semantic.model,
+                        )
+                        model = semantic.model
+                        runtime_kwargs = routed_runtime
+            except Exception as exc:
+                logger.debug("Semantic model routing skipped: %s", exc)
+
         from agent.fast_mode import STATIC_TIERS
         from hermes_cli.models import resolve_fast_mode_overrides
         # Tests bind this method onto bare namespaces, so no class-level tables here.
