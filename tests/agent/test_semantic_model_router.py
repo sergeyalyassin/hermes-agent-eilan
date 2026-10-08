@@ -1,5 +1,3 @@
-import pytest
-
 from agent import semantic_model_router as router
 
 
