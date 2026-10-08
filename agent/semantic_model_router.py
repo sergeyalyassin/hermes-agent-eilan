@@ -18,7 +18,7 @@ DEFAULT_ROUTES = {
     "light": "google/gemma-4-26b-a4b-it:free",
     "coding": "qwen/qwen3-coder:free",
     "reasoning": "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "general": "qwen/qwen3.8-27b:free",
+    "general": "google/gemma-4-26b-a4b-it:free",
 }
 
 _LIGHT = re.compile(
