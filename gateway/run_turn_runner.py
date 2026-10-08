@@ -1958,7 +1958,7 @@ class TurnRunner:
             # Failure to inspect an explicit override must fail closed.
             allow_semantic_routing = False
         turn_route = runner._resolve_turn_agent_config(
-            ctx.message, model, runtime_kwargs, allow_semantic_routing=allow_semantic_routing,
+            ctx.message, model, runtime_kwargs, allow_semantic_routing=allow_semantic_routing, routing_config=ctx.user_config,
         )
         agent, reused_cached_agent = self._resolve_turn_agent(
             turn_route, platform_key, combined_ephemeral, max_iterations, reasoning_config, pr,
