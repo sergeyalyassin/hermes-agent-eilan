@@ -306,7 +306,7 @@ class GatewayTurnMixin:
         return model, runtime_kwargs
 
     def _resolve_turn_agent_config(self, user_message: str, model: str, runtime_kwargs: dict, *,
-                                   allow_semantic_routing: bool = True) -> dict:
+                                   allow_semantic_routing: bool = True, routing_config: Optional[dict] = None) -> dict:
         """Resolve one turn, optionally applying deterministic semantic model routing.
 
         Explicit session/channel choices are allowed to disable this optimization. Provider
@@ -321,7 +321,7 @@ class GatewayTurnMixin:
                 from agent.semantic_model_router import select
                 from gateway.run import _resolve_runtime_agent_kwargs_for_provider
 
-                semantic = select(user_message, getattr(self, "user_config", None))
+                semantic = select(user_message, routing_config)
                 if semantic:
                     routed_runtime = _resolve_runtime_agent_kwargs_for_provider(
                         "openrouter", target_model=semantic.model,
