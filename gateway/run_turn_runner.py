@@ -1936,7 +1936,30 @@ class TurnRunner:
         runner._reasoning_config = reasoning_config
         runner._service_tier = runner._resolve_session_service_tier(source=ctx.source, session_key=ctx.session_key)
         stream_consumer, stream_delta_cb, interim_cb, want_interim = self._setup_stream_consumer(platform_key)
-        turn_route = runner._resolve_turn_agent_config(ctx.message, model, runtime_kwargs)
+        # Preserve explicit /model and channel overrides: semantic routing is only an automatic
+        # optimization when this session is not pinned to a model by the user/config.
+        allow_semantic_routing = True
+        try:
+            state = runner._peek_session_state(ctx.session_key) if ctx.session_key else None
+            allow_semantic_routing = not bool(
+                state and getattr(getattr(state, "conversation", None), "model_override", None)
+            )
+            if allow_semantic_routing:
+                from gateway.run import _get_channel_override
+                cfg = getattr(runner, "config", None)
+                if cfg is not None:
+                    channel = _get_channel_override(
+                        cfg, ctx.source.platform, str(ctx.source.chat_id) if ctx.source.chat_id else "",
+                        thread_id=str(ctx.source.thread_id) if getattr(ctx.source, "thread_id", None) else None,
+                        parent_id=str(ctx.source.parent_chat_id) if getattr(ctx.source, "parent_chat_id", None) else None,
+                    )
+                    allow_semantic_routing = not bool(channel and (channel.model or channel.provider))
+        except Exception:
+            # Failure to inspect an explicit override must fail closed.
+            allow_semantic_routing = False
+        turn_route = runner._resolve_turn_agent_config(
+            ctx.message, model, runtime_kwargs, allow_semantic_routing=allow_semantic_routing,
+        )
         agent, reused_cached_agent = self._resolve_turn_agent(
             turn_route, platform_key, combined_ephemeral, max_iterations, reasoning_config, pr,
         )
